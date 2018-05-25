@@ -505,7 +505,7 @@ CF_INLINE LARGE_INTEGER __CFUInt64ToAbsoluteTime(uint64_t desiredFireTime) {
 
 #endif
 
-#pragma mark -
+#pragma mark - CFRunLoopModeRef
 #pragma mark Modes
 
 /* unlock a run loop and modes before doing callouts/sleeping */
@@ -519,10 +519,13 @@ static CFTypeID __kCFRunLoopSourceTypeID = _kCFRuntimeNotATypeID;
 static CFTypeID __kCFRunLoopObserverTypeID = _kCFRuntimeNotATypeID;
 static CFTypeID __kCFRunLoopTimerTypeID = _kCFRuntimeNotATypeID;
 
+//CFRunLoopModeRef 指向一个结构体 __CFRunLoopMode
 typedef struct __CFRunLoopMode *CFRunLoopModeRef;
 
+//结构体 __CFRunLoopMode
 struct __CFRunLoopMode {
     CFRuntimeBase _base;
+    // pthread_mutex_t线程互斥锁  https://blog.csdn.net/zmxiangde_88/article/details/7998458
     pthread_mutex_t _lock;	/* must have the run loop locked before locking this */
     CFStringRef _name;
     Boolean _stopped;
@@ -552,16 +555,19 @@ struct __CFRunLoopMode {
     uint64_t _timerHardDeadline; /* TSR */
 };
 
+//锁住runloopModel内的线程互斥锁.
 CF_INLINE void __CFRunLoopModeLock(CFRunLoopModeRef rlm) {
     pthread_mutex_lock(&(rlm->_lock));
     //CFLog(6, CFSTR("__CFRunLoopModeLock locked %p"), rlm);
 }
 
+//打开runloopModel内的线程互斥锁.
 CF_INLINE void __CFRunLoopModeUnlock(CFRunLoopModeRef rlm) {
     //CFLog(6, CFSTR("__CFRunLoopModeLock unlocking %p"), rlm);
     pthread_mutex_unlock(&(rlm->_lock));
 }
 
+// 判断两个runloopModel是否相等
 static Boolean __CFRunLoopModeEqual(CFTypeRef cf1, CFTypeRef cf2) {
     CFRunLoopModeRef rlm1 = (CFRunLoopModeRef)cf1;
     CFRunLoopModeRef rlm2 = (CFRunLoopModeRef)cf2;
@@ -593,6 +599,7 @@ static CFStringRef __CFRunLoopModeCopyDescription(CFTypeRef cf) {
     return result;
 }
 
+// 释放model中的成员变量
 static void __CFRunLoopModeDeallocate(CFTypeRef cf) {
     CFRunLoopModeRef rlm = (CFRunLoopModeRef)cf;
     if (NULL != rlm->_sources0) CFRelease(rlm->_sources0);
@@ -754,6 +761,7 @@ CF_INLINE void __CFRunLoopLockInit(pthread_mutex_t *lock) {
 }
 
 /* call with rl locked, returns mode locked */
+
 static CFRunLoopModeRef __CFRunLoopFindMode(CFRunLoopRef rl, CFStringRef modeName, Boolean create) {
     CHECK_FOR_FORK();
     CFRunLoopModeRef rlm;
@@ -926,7 +934,7 @@ void _CFRunLoopSetWindowsMessageQueueHandler(CFRunLoopRef rl, CFStringRef modeNa
 
 #endif
 
-#pragma mark -
+#pragma mark - CFRunLoopSourceRef
 #pragma mark Sources
 
 /* Bit 3 in the base reserved bits is used for invalid state in run loop objects */
@@ -978,7 +986,7 @@ CF_INLINE void __CFRunLoopSourceUnlock(CFRunLoopSourceRef rls) {
 //    CFLog(6, CFSTR("__CFRunLoopSourceLock unlocking %p"), rls);
     pthread_mutex_unlock(&(rls->_lock));
 }
-
+#pragma mark - CFRunLoopObserverRef
 #pragma mark Observers
 
 struct __CFRunLoopObserver {
@@ -1318,6 +1326,8 @@ CFTypeID CFRunLoopGetTypeID(void) {
     return __kCFRunLoopTypeID;
 }
 
+// 根据线程创建对应run loop
+// loop 有thread的成员变量.   model
 static CFRunLoopRef __CFRunLoopCreate(pthread_t t) {
     CFRunLoopRef loop = NULL;
     CFRunLoopModeRef rlm;
@@ -1355,25 +1365,33 @@ static CFLock_t loopsLock = CFLockInit;
 
 // should only be called by Foundation
 // t==0 is a synonym for "main thread" that always works
+
+// 根据线程取得对应的runLoop
 CF_EXPORT CFRunLoopRef _CFRunLoopGet0(pthread_t t) {
+    // 如果线程为nil,就使用主线程
     if (pthread_equal(t, kNilPthreadT)) {
 	t = pthread_main_thread_np();
     }
     __CFLock(&loopsLock);
     if (!__CFRunLoops) {
         __CFUnlock(&loopsLock);
+        
+        // 创建dict,存储线程和runloop
 	CFMutableDictionaryRef dict = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, NULL, &kCFTypeDictionaryValueCallBacks);
 	CFRunLoopRef mainLoop = __CFRunLoopCreate(pthread_main_thread_np());
 	CFDictionarySetValue(dict, pthreadPointer(pthread_main_thread_np()), mainLoop);
 	if (!OSAtomicCompareAndSwapPtrBarrier(NULL, dict, (void * volatile *)&__CFRunLoops)) {
+        // 释放dict
 	    CFRelease(dict);
 	}
+        // release main loop.
 	CFRelease(mainLoop);
         __CFLock(&loopsLock);
     }
     CFRunLoopRef loop = (CFRunLoopRef)CFDictionaryGetValue(__CFRunLoops, pthreadPointer(t));
     __CFUnlock(&loopsLock);
     if (!loop) {
+        // 如果线程对应的loop不存在,就创建.  然后存储起来.
 	CFRunLoopRef newLoop = __CFRunLoopCreate(t);
         __CFLock(&loopsLock);
 	loop = (CFRunLoopRef)CFDictionaryGetValue(__CFRunLoops, pthreadPointer(t));
@@ -1385,8 +1403,10 @@ CF_EXPORT CFRunLoopRef _CFRunLoopGet0(pthread_t t) {
         __CFUnlock(&loopsLock);
 	CFRelease(newLoop);
     }
+    // pthread_self获取线程自身的id
     if (pthread_equal(t, pthread_self())) {
         _CFSetTSD(__CFTSDKeyRunLoop, (void *)loop, NULL);
+        //
         if (0 == _CFGetTSD(__CFTSDKeyRunLoopCntr)) {
             _CFSetTSD(__CFTSDKeyRunLoopCntr, (void *)(PTHREAD_DESTRUCTOR_ITERATIONS-1), (void (*)(void *))__CFFinalizeRunLoop);
         }
@@ -1395,6 +1415,7 @@ CF_EXPORT CFRunLoopRef _CFRunLoopGet0(pthread_t t) {
 }
 
 // should only be called by Foundation
+// 取得线程对应的run loop ,如果不存在,并不会创建新的.
 CFRunLoopRef _CFRunLoopGet0b(pthread_t t) {
     if (pthread_equal(t, kNilPthreadT)) {
 	t = pthread_main_thread_np();
@@ -1481,7 +1502,9 @@ void _CFRunLoopSetCurrent(CFRunLoopRef rl) {
 
 CFRunLoopRef CFRunLoopGetMain(void) {
     CHECK_FOR_FORK();
+    // 创建 main run loop .如果不存在就创建一个
     static CFRunLoopRef __main = NULL; // no retain needed
+    // pthread_main_thread_np 获取主线程.
     if (!__main) __main = _CFRunLoopGet0(pthread_main_thread_np()); // no CAS needed
     return __main;
 }
