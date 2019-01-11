@@ -527,13 +527,13 @@ struct __CFRunLoopMode {
     CFRuntimeBase _base;
     // pthread_mutex_t线程互斥锁  https://blog.csdn.net/zmxiangde_88/article/details/7998458
     pthread_mutex_t _lock;	/* must have the run loop locked before locking this */
-    CFStringRef _name;
+    CFStringRef _name;      // Mode Name, 例如 @"kCFRunLoopDefaultMode"
     Boolean _stopped;
     char _padding[3];
-    CFMutableSetRef _sources0;
-    CFMutableSetRef _sources1;
-    CFMutableArrayRef _observers;
-    CFMutableArrayRef _timers;
+    CFMutableSetRef _sources0; // set
+    CFMutableSetRef _sources1;  // set
+    CFMutableArrayRef _observers;  // array
+    CFMutableArrayRef _timers;    // array
     CFMutableDictionaryRef _portToV1SourceMap;
     __CFPortSet _portSet;
     CFIndex _observerMask;
@@ -643,19 +643,20 @@ typedef struct _per_run_data {
 
 struct __CFRunLoop {
     CFRuntimeBase _base;
-    pthread_mutex_t _lock;			/* locked for accessing mode list */
+    pthread_mutex_t _lock;	//线程互斥锁(https://blog.csdn.net/guotianqing/article/details/80559865)		/* locked for accessing mode list */
     __CFPort _wakeUpPort;			// used for CFRunLoopWakeUp 
     Boolean _unused;
-    volatile _per_run_data *_perRunData;              // reset for runs of the run loop
+    // volatile 关键字, 不对变量进行编译优化
+    volatile _per_run_data *_perRunData;   //            // reset for runs of the run loop
     pthread_t _pthread;
     uint32_t _winthread;
-    CFMutableSetRef _commonModes;
-    CFMutableSetRef _commonModeItems;
-    CFRunLoopModeRef _currentMode;
-    CFMutableSetRef _modes;
+    CFMutableSetRef _commonModes;    // Set
+    CFMutableSetRef _commonModeItems;   // Set<Source/Observer/Timer>
+    CFRunLoopModeRef _currentMode;     // Current Runloop Mode
+    CFMutableSetRef _modes;             // Set
     struct _block_item *_blocks_head;
-    struct _block_item *_blocks_tail;
-    CFAbsoluteTime _runTime;
+    struct _block_item *_blocks_tail; // tail-尾巴
+    CFAbsoluteTime _runTime;  // CFTimeInterval, 绝对时间
     CFAbsoluteTime _sleepTime;
     CFTypeRef _counterpart;
 };
@@ -1509,8 +1510,9 @@ CFRunLoopRef CFRunLoopGetMain(void) {
     return __main;
 }
 
+
 CFRunLoopRef CFRunLoopGetCurrent(void) {
-    CHECK_FOR_FORK();
+    CHECK_FOR_FORK(); // 什么操作都没有
     CFRunLoopRef rl = (CFRunLoopRef)_CFGetTSD(__CFTSDKeyRunLoop);
     if (rl) return rl;
     return _CFRunLoopGet0(pthread_self());
@@ -1614,12 +1616,13 @@ static void __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__(void *msg) {
     asm __volatile__(""); // thwart tail-call optimization
 }
 
+/// 2. 通知 Observers: 即将触发 xxx 回调。
 static void __CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__() __attribute__((noinline));
+
 static void __CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__(CFRunLoopObserverCallBack func, CFRunLoopObserverRef observer, CFRunLoopActivity activity, void *info) {
     if (func) {
         func(observer, activity, info);
-    }
-    asm __volatile__(""); // thwart tail-call optimization
+    }asm __volatile__(""); // thwart tail-call optimization
 }
 
 static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_TIMER_CALLBACK_FUNCTION__() __attribute__((noinline));
@@ -1637,7 +1640,8 @@ static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_BLOCK__(void (^block)(void)) {
     }
     asm __volatile__(""); // thwart tail-call optimization
 }
-
+ 
+ /// 执行被加入的block
 static Boolean __CFRunLoopDoBlocks(CFRunLoopRef rl, CFRunLoopModeRef rlm) { // Call with rl and rlm locked
     if (!rl->_blocks_head) return false;
     if (!rlm || !rlm->_name) return false;
@@ -1688,6 +1692,7 @@ static Boolean __CFRunLoopDoBlocks(CFRunLoopRef rl, CFRunLoopModeRef rlm) { // C
 
 /* rl is locked, rlm is locked on entrance and exit */
 static void __CFRunLoopDoObservers() __attribute__((noinline));
+ /// 2. 通知 Observers: RunLoop 即将触发 xxx 回调。
 static void __CFRunLoopDoObservers(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFRunLoopActivity activity) {	/* DOES CALLOUT */
     CHECK_FOR_FORK();
 
@@ -1755,6 +1760,7 @@ static void __CFRunLoopCollectSources0(const void *value, void *context) {
     }
 }
 
+/// 4. 触发 Source  回调。
 static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__() __attribute__((noinline));
 static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__(void (*perform)(void *), void *info) {
     if (perform) {
@@ -2673,6 +2679,8 @@ SInt32 CFRunLoopRunSpecific(CFRunLoopRef rl, CFStringRef modeName, CFTimeInterva
     CHECK_FOR_FORK();
     if (__CFRunLoopIsDeallocating(rl)) return kCFRunLoopRunFinished;
     __CFRunLoopLock(rl);
+
+     /// 首先根据modeName找到对应mode
     CFRunLoopModeRef currentMode = __CFRunLoopFindMode(rl, modeName, false);
     if (NULL == currentMode || __CFRunLoopModeIsEmpty(rl, currentMode, rl->_currentMode)) {
 	Boolean did = false;

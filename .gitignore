@@ -1,6 +1,11 @@
 # Prerequisites
 *.d
 
+
+# CLion
+cmake*
+*.idea
+
 # Object files
 *.o
 *.ko

@@ -57,21 +57,24 @@ enum {
 
 /* Run Loop Observer Activities */
 typedef CF_OPTIONS(CFOptionFlags, CFRunLoopActivity) {
-    kCFRunLoopEntry = (1UL << 0),
-    kCFRunLoopBeforeTimers = (1UL << 1),
-    kCFRunLoopBeforeSources = (1UL << 2),
-    kCFRunLoopBeforeWaiting = (1UL << 5),
-    kCFRunLoopAfterWaiting = (1UL << 6),
-    kCFRunLoopExit = (1UL << 7),
-    kCFRunLoopAllActivities = 0x0FFFFFFFU
+    kCFRunLoopEntry = (1UL << 0),// // 即将进入Loop
+    kCFRunLoopBeforeTimers = (1UL << 1), // 即将处理 Timer
+    kCFRunLoopBeforeSources = (1UL << 2),  // 即将处理 Source
+    kCFRunLoopBeforeWaiting = (1UL << 5),   // 即将进入休眠
+    kCFRunLoopAfterWaiting = (1UL << 6), // 刚从休眠中唤醒
+    kCFRunLoopExit = (1UL << 7),        // 即将退出Loop
+    kCFRunLoopAllActivities = 0x0FFFFFFFU  // 激活状态l
 };
 
+//两个mode名
 CF_EXPORT const CFStringRef kCFRunLoopDefaultMode;
 CF_EXPORT const CFStringRef kCFRunLoopCommonModes;
 
 CF_EXPORT CFTypeID CFRunLoopGetTypeID(void);
 
+//获取当前线程的runloop
 CF_EXPORT CFRunLoopRef CFRunLoopGetCurrent(void);
+// 获取主线程runloop
 CF_EXPORT CFRunLoopRef CFRunLoopGetMain(void);
 
 CF_EXPORT CFStringRef CFRunLoopCopyCurrentMode(CFRunLoopRef rl);
