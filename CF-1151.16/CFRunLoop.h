@@ -77,8 +77,10 @@ CF_EXPORT CFRunLoopRef CFRunLoopGetCurrent(void);
 // 获取主线程runloop
 CF_EXPORT CFRunLoopRef CFRunLoopGetMain(void);
 
+// 当前runloop的model的名字
 CF_EXPORT CFStringRef CFRunLoopCopyCurrentMode(CFRunLoopRef rl);
 
+// 获取runloop的所有mode的name
 CF_EXPORT CFArrayRef CFRunLoopCopyAllModes(CFRunLoopRef rl);
 
 CF_EXPORT void CFRunLoopAddCommonMode(CFRunLoopRef rl, CFStringRef mode);

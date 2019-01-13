@@ -723,7 +723,7 @@ CF_INLINE Boolean __CFRunLoopIsDeallocating(CFRunLoopRef rl) {
 CF_INLINE void __CFRunLoopSetDeallocating(CFRunLoopRef rl) {
     __CFBitfieldSetValue(((CFRuntimeBase *)rl)->_cfinfo[CF_INFO_BITS], 2, 2, 1);
 }
-
+//使用rl的lock，加锁
 CF_INLINE void __CFRunLoopLock(CFRunLoopRef rl) {
     pthread_mutex_lock(&(((CFRunLoopRef)rl)->_lock));
     //    CFLog(6, CFSTR("__CFRunLoopLock locked %p"), rl);
@@ -1558,7 +1558,7 @@ static void __CFRunLoopAddItemsToCommonMode(const void *value, void *ctx) {
     }
 }
 
-static void __CFRunLoopAddItemToCommonModes(const void *value, void *ctx) {
+static void __CFRunLoopAddIte__CFRunLoopAddItemToCommonModesmToCommonModes(const void *value, void *ctx) {
     CFStringRef modeName = (CFStringRef)value;
     CFRunLoopRef rl = (CFRunLoopRef)(((CFTypeRef *)ctx)[0]);
     CFTypeRef item = (CFTypeRef)(((CFTypeRef *)ctx)[1]);
@@ -1593,8 +1593,10 @@ CF_EXPORT Boolean _CFRunLoop01(CFRunLoopRef rl, CFStringRef modeName) {
 
 void CFRunLoopAddCommonMode(CFRunLoopRef rl, CFStringRef modeName) {
     CHECK_FOR_FORK();
+    // 如果是当前正在析构的runloop，则return
     if (__CFRunLoopIsDeallocating(rl)) return;
     __CFRunLoopLock(rl);
+    // 如果rl 不包含当前mode，则加入
     if (!CFSetContainsValue(rl->_commonModes, modeName)) {
 	CFSetRef set = rl->_commonModeItems ? CFSetCreateCopy(kCFAllocatorSystemDefault, rl->_commonModeItems) : NULL;
 	CFSetAddValue(rl->_commonModes, modeName);

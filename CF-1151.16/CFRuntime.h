@@ -95,10 +95,10 @@ typedef struct __CFRuntimeClass {
     CFStringRef (*copyFormattingDesc)(CFTypeRef cf, CFDictionaryRef formatOptions);	// return str with retain
     CFStringRef (*copyDebugDesc)(CFTypeRef cf);	// return str with retain
 
-#define CF_RECLAIM_AVAILABLE 1
+#define CF_RECLAIM_AVAILABLE 1  //reclaim_available 回收再利用
     void (*reclaim)(CFTypeRef cf); // Or in _kCFRuntimeResourcefulObject in the .version to indicate this field should be used
 
-#define CF_REFCOUNT_AVAILABLE 1
+#define CF_REFCOUNT_AVAILABLE 1  // refCount
     uint32_t (*refcount)(intptr_t op, CFTypeRef cf); // Or in _kCFRuntimeCustomRefCount in the .version to indicate this field should be used
         // this field must be non-NULL when _kCFRuntimeCustomRefCount is in the .version field
         // - if the callback is passed 1 in 'op' it should increment the 'cf's reference count and return 0
