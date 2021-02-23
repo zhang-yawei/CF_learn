@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "iosfwd": "c",
+        "memory": "c"
+    },
+    "python.pythonPath": "/usr/bin/python"
+}
